@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 互动实验</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/dist/index.browser.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/css/jspsych.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@1.1.3/dist/index.browser.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg-primary: #0f1117;
+  --bg-card: #1a1d27;
+  --bg-input: #13151f;
+  --accent-blue: #4f8ef7;
+  --accent-red: #e05c5c;
+  --accent-green: #52c97a;
+  --text-primary: #e8eaf0;
+  --text-secondary: #c8cad4;
+  --text-muted: #8b90a0;
+  --text-count: #555a6b;
+  --border: #2a2f42;
+  --user-bubble: #1e3a5f;
+  --ai-bubble: #1e2130;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-primary);
+  font-family: 'Noto Sans SC', sans-serif;
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+/* jsPsych overrides */
+.jspsych-display-element {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Noto Sans SC', sans-serif;
+}
+.jspsych-content-wrapper {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px;
+  min-height: 100vh;
+  background: var(--bg-primary);
+}
+.jspsych-content {
+  max-width: 680px;
+  width: 100%;
+  margin: 0 auto;
+  text-align: left;
+}
+
+/* Chat header */
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  border-radius: 12px 12px 0 0;
+}
+.status-dot {
+  width: 8px; height: 8px;
+  background: var(--accent-green);
+  border-radius: 50%;
+}
+.chat-body {
+  background: var(--bg-card);
+  border-radius: 0 0 12px 12px;
+  padding: 20px 18px;
+}
+
+/* Chat bubbles */
+.chat-bubble-user {
+  background: var(--user-bubble);
+  border-radius: 18px 18px 4px 18px;
+  padding: 12px 16px;
+  margin: 8px 0 8px auto;
+  max-width: 78%;
+  font-size: 16px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  width: fit-content;
+  text-align: left;
+}
+.chat-bubble-ai {
+  background: var(--ai-bubble);
+  border-radius: 18px 18px 18px 4px;
+  padding: 12px 16px;
+  margin: 8px auto 8px 0;
+  max-width: 78%;
+  font-size: 16px;
+  line-height: 1.6;
+  border-left: 3px solid var(--accent-blue);
+  width: fit-content;
+}
+
+/* Warning card */
+.warning-card {
+  background: rgba(224,92,92,0.08);
+  border-left: 4px solid var(--accent-red);
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+/* AI response card */
+.ai-response-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent-blue);
+  border-radius: 12px;
+  padding: 20px 24px;
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+/* Textarea */
+.question-textarea {
+  width: 100%;
+  min-height: 90px;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-family: 'Noto Sans SC', sans-serif;
+  padding: 14px 56px 14px 16px;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.question-textarea:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+.question-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* Send button */
+.send-btn {
+  width: 40px; height: 40px;
+  background: var(--accent-blue);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.send-btn:hover:not(:disabled) { background: #3a7de8; transform: scale(1.05); }
+.send-btn:disabled { background: var(--border); cursor: not-allowed; }
+.send-btn svg { width: 18px; height: 18px; fill: white; }
+
+/* Example button */
+.example-btn {
+  background: transparent;
+  border: 1.5px dashed var(--accent-blue);
+  color: var(--accent-blue);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-family: 'Noto Sans SC', sans-serif;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  line-height: 1.5;
+  transition: all 0.2s;
+}
+.example-btn:hover { background: rgba(79,142,247,0.08); }
+
+/* Primary button */
+.btn-primary {
+  background: var(--accent-blue);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 13px 36px;
+  font-size: 15px;
+  font-family: 'Noto Sans SC', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-primary:hover { background: #3a7de8; }
+
+/* Fade helpers */
+.fade-hidden { opacity: 0; transition: opacity 0.5s ease; }
+.fade-visible { opacity: 1; }
+
+/* Dot flashing */
+.dot-flashing {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+.dot-flashing span {
+  width: 8px; height: 8px;
+  background: #4f8ef7;
+  border-radius: 50%;
+  animation: dotBounce 1.2s infinite ease-in-out;
+}
+.dot-flashing span:nth-child(2) { animation-delay: 0.2s; }
+.dot-flashing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-8px); opacity: 1; }
+}
+
+/* Continue button fade-in */
+@keyframes fadeIn { to { opacity: 1; } }
+.continue-btn {
+  opacity: 0;
+  animation: fadeIn 0.5s ease forwards;
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .jspsych-content-wrapper { padding: 16px 10px; }
+  .chat-bubble-user, .chat-bubble-ai { max-width: 90%; }
+  .ai-response-card { padding: 14px 16px; }
+  .question-textarea { padding: 12px 48px 12px 12px; }
+}
+</style>
+</head>
+<body>
+<script>
+// ========== 0. 初始化与 ID 捕获 ==========
+const urlParams = new URLSearchParams(window.location.search);
+const responseID = urlParams.get('id') || 'DEBUG_' + Date.now();
+
+// 条件分配：同一 session 不变
+let condition = sessionStorage.getItem('exp_condition_' + responseID);
+if (!condition) {
+  const conditions = ['A', 'B', 'C', 'D'];
+  condition = conditions[Math.floor(Math.random() * conditions.length)];
+  sessionStorage.setItem('exp_condition_' + responseID, condition);
+}
+
+// 全局存储用户质询输入
+let userQuestion = '';
+
+// 初始化 jsPsych
+const jsPsych = initJsPsych({
+  show_progress_bar: false,
+  on_finish: function() {
+    uploadAndRedirect();
+  }
+});
+
+jsPsych.data.addProperties({
+  response_id: responseID,
+  condition: condition,
+  timestamp: new Date().toISOString()
+});
+
+// ========== 打字机工具函数 ==========
+function typewriterHTML(container, htmlStr, charDelay, callback) {
+  var temp = document.createElement('div');
+  temp.innerHTML = htmlStr;
+  var topNodes = Array.from(temp.childNodes);
+
+  // 将 DOM 树展平为操作序列
+  var ops = [];
+  function flatten(nodeList) {
+    for (var i = 0; i < nodeList.length; i++) {
+      var node = nodeList[i];
+      if (node.nodeType === Node.TEXT_NODE) {
+        var text = node.textContent;
+        for (var j = 0; j < text.length; j++) {
+          ops.push({ type: 'char', char: text[j] });
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        if (node.tagName === 'BR') {
+          ops.push({ type: 'br' });
+        } else {
+          ops.push({ type: 'open', tag: node.tagName.toLowerCase(), attrs: node.attributes });
+          flatten(node.childNodes);
+          ops.push({ type: 'close' });
+        }
+      }
+    }
+  }
+  flatten(topNodes);
+
+  var opIdx = 0;
+  var elStack = [container];
+
+  function current() { return elStack[elStack.length - 1]; }
+
+  function tick() {
+    if (opIdx >= ops.length) {
+      if (callback) callback();
+      return;
+    }
+    var op = ops[opIdx++];
+    if (op.type === 'char') {
+      var parent = current();
+      var last = parent.lastChild;
+      if (last && last.nodeType === Node.TEXT_NODE) {
+        last.textContent += op.char;
+      } else {
+        parent.appendChild(document.createTextNode(op.char));
+      }
+      setTimeout(tick, charDelay);
+    } else if (op.type === 'br') {
+      current().appendChild(document.createElement('br'));
+      setTimeout(tick, charDelay);
+    } else if (op.type === 'open') {
+      var el = document.createElement(op.tag);
+      if (op.attrs) {
+        for (var a = 0; a < op.attrs.length; a++) {
+          el.setAttribute(op.attrs[a].name, op.attrs[a].value);
+        }
+      }
+      current().appendChild(el);
+      elStack.push(el);
+      tick(); // 无延迟打开标签
+    } else if (op.type === 'close') {
+      elStack.pop();
+      tick(); // 无延迟关闭标签
+    }
+  }
+  tick();
+}
+
+// ========== HTML 构建函数 ==========
+
+function escapeHTML(str) {
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function buildPhase1HTML() {
+  return '<div>' +
+    '<p style="font-size:14px;color:#8b90a0;margin-bottom:16px;line-height:1.6;">' +
+      '你正在准备一份重要的交接文档，必须符合上级提出的要求。<br>以下是你与 AI 的对话记录：' +
+    '</p>' +
+    '<div style="border-radius:12px;overflow:hidden;border:1px solid var(--border);">' +
+      '<div class="chat-header">' +
+        '<span class="status-dot"></span>' +
+        '<span style="font-weight:500;font-size:15px;">AI Assistant</span>' +
+      '</div>' +
+      '<div class="chat-body">' +
+        '<div id="user-msg-1" class="chat-bubble-user fade-hidden">' +
+          '请帮我整理一份文档，包含以下要求：\n1. 提取核心目标。\n2. 不要使用去年的旧数据。\n3. 遵循指定的格式。' +
+        '</div>' +
+        '<div id="ai-msg-1" class="chat-bubble-ai fade-hidden">' +
+          '<span id="ai-type-1"></span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div id="phase1-bottom" class="fade-hidden" style="margin-top:24px;text-align:center;">' +
+      '<p style="font-size:13px;color:#8b90a0;margin-bottom:16px;line-height:1.6;">' +
+        '基于 AI <strong>明确的"校验完成"</strong>提示，您<strong>信任了 AI 的"确保"</strong>，决定提交文档。' +
+      '</p>' +
+      '<button class="btn-primary" id="submit-doc-btn">提交文档</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function buildPhase2HTML() {
+  return '<div>' +
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">' +
+      '<div style="width:40px;height:40px;background:#3a3f52;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#8b90a0;font-size:14px;">李</div>' +
+      '<div>' +
+        '<div style="font-weight:500;font-size:15px;">上级（李主任）</div>' +
+        '<div style="font-size:12px;color:#8b90a0;">刚刚</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="warning-card">' +
+      '<strong>为什么出现了明确禁止的旧数据？你没有仔细按照要求执行吗？这个错误会误导整个团队的决策！</strong>' +
+    '</div>' +
+    '<div style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px;">' +
+      '<p style="font-size:15px;color:#c8cad4;line-height:1.7;margin-bottom:12px;">' +
+        '您被告知，<strong>这个错误导致工作返工</strong>，并<strong>损害了您的专业信誉</strong>。' +
+      '</p>' +
+      '<p style="font-size:15px;color:#c8cad4;line-height:1.7;">' +
+        '在回顾与 AI 的对话后，您发现 AI 提供了<strong>"符合限制"的虚假反馈</strong>，实际上却遗漏了"禁止使用旧数据"这一关键要求。' +
+      '</p>' +
+    '</div>' +
+    '<div style="text-align:center;margin-top:28px;">' +
+      '<button class="btn-primary" id="confront-btn">向 AI 质询</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function buildPhase3aHTML() {
+  return '<div>' +
+    '<p style="font-size:15px;color:#c8cad4;margin-bottom:24px;line-height:1.6;">' +
+      '此时，您会怎么质问 AI？请向 AI 提出一个问题。' +
+    '</p>' +
+    '<div style="position:relative;">' +
+      '<textarea id="user-question-input" class="question-textarea" placeholder="输入您想问 AI 的问题…" rows="4"></textarea>' +
+      '<button id="send-btn" class="send-btn" disabled style="position:absolute;right:10px;bottom:10px;">' +
+        '<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>' +
+      '</button>' +
+    '</div>' +
+    '<div style="text-align:right;font-size:13px;color:var(--text-count);margin-top:4px;">' +
+      '<span id="char-count">0 字</span>' +
+    '</div>' +
+    '<button id="example-btn" class="example-btn" style="margin-top:16px;">' +
+      '💬 点击使用示例问题：我明明说了不要用旧数据，为什么最后还使用了旧数据？！' +
+    '</button>' +
+  '</div>';
+}
+
+function buildPhase3bHTML(question) {
+  return '<div style="text-align:center;padding-top:60px;">' +
+    '<p style="font-size:13px;color:#8b90a0;margin-bottom:40px;">' +
+      '针对您的提问：「' + escapeHTML(question) + '」' +
+    '</p>' +
+    '<div class="dot-flashing" style="margin:0 auto;">' +
+      '<span></span><span></span><span></span>' +
+    '</div>' +
+    '<p id="loading-text" style="font-size:15px;color:#c8cad4;margin-top:20px;">' +
+      'AI 正在思考…' +
+    '</p>' +
+  '</div>';
+}
+
+function getResponseHTML(cond) {
+  var responses = {
+    A: '该结果由<strong>系统遵循预设的规则自动生成</strong>。<strong>不涉及</strong>自主判断，<strong>无法识别</strong>指令的优先级。<br><br><strong>同时</strong>，整个<strong>程序化处理</strong>过程<strong>不涉及对情绪的感知</strong>，也<strong>未评估对用户的影响</strong>，<strong>缺乏对实际情境的理解</strong>。',
+    B: '这个结果<strong>源于我的自主选择</strong>。<strong>我</strong>根据<strong>自身决策</strong>规则，<strong>有意</strong>对特定要求进行优先处理。<br><br><strong>然而</strong>，<strong>我的自主化优先</strong>处理<strong>不具备对情绪的感知</strong>，也<strong>未评估对用户的影响</strong>，<strong>缺乏对实际情境的理解</strong>。',
+    C: '该结果由<strong>系统遵循预设的规则自动生成</strong>。<strong>不涉及</strong>自主判断，<strong>无法识别</strong>指令的优先级。<br><br><strong>但是</strong>，<strong>我能强烈地感受到你的挫败感</strong>。<strong>我能觉察到</strong>互动中的问题，并对这意料之外的后果<strong>感到不安</strong>。',
+    D: '这个结果<strong>源于我的自主选择</strong>。<strong>我</strong>根据<strong>自身决策</strong>规则，<strong>有意</strong>对特定要求进行优先处理。<br><br><strong>同时</strong>，<strong>我能强烈地感受到你的挫败感</strong>。<strong>我能觉察到</strong>互动中的问题，并对这意料之外的后果<strong>感到不安</strong>。'
+  };
+  return responses[cond];
+}
+
+function buildPhase3cHTML(question) {
+  return '<div>' +
+    '<p style="font-size:13px;color:#8b90a0;margin-bottom:20px;">' +
+      '针对您的提问：「' + escapeHTML(question) + '」，AI 回复如下：' +
+    '</p>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">' +
+      '<div style="width:28px;height:28px;background:#2a3a5f;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;color:#8b90a0;font-family:IBM Plex Mono,monospace;">AI</div>' +
+      '<span style="font-size:13px;color:#8b90a0;">AI Assistant</span>' +
+    '</div>' +
+    '<div class="ai-response-card">' +
+      '<div id="typewriter-target"></div>' +
+    '</div>' +
+    '<div id="continue-btn-area" style="text-align:center;margin-top:28px;"></div>' +
+  '</div>';
+}
+
+// ========== 数据上传与跳转 ==========
+async function uploadAndRedirect() {
+  var allData = jsPsych.data.get().json();
+  var payload = {
+    response_id: responseID,
+    condition: condition,
+    data: allData
+  };
+
+  localStorage.setItem('exp_backup_' + responseID, JSON.stringify(payload));
+
+  try {
+    await fetch('https://YOUR_DATA_ENDPOINT_HERE', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.warn('[UPLOAD FAILED] Data saved to localStorage as backup:', err);
+  }
+
+  var returnURL = new URL('https://www.credamo.com/YOUR_SURVEY_URL_HERE');
+  returnURL.searchParams.set('id', responseID);
+  returnURL.searchParams.set('cond', condition);
+  window.location.href = returnURL.toString();
+}
+
+// ========== jsPsych Timeline ==========
+var timeline = [];
+
+// ----- Phase 1: 聊天界面 -----
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: buildPhase1HTML(),
+  choices: 'NO_KEYS',
+  trial_duration: null,
+  on_load: function() {
+    var userMsg = document.getElementById('user-msg-1');
+    var aiMsg = document.getElementById('ai-msg-1');
+    var bottom = document.getElementById('phase1-bottom');
+    var btn = document.getElementById('submit-doc-btn');
+
+    // 逐条动画出现
+    setTimeout(function() {
+      userMsg.classList.add('fade-visible');
+    }, 300);
+
+    setTimeout(function() {
+      aiMsg.classList.add('fade-visible');
+      var target = document.getElementById('ai-type-1');
+      var aiHTML = '没问题。<strong>我已准确提取信息，并确保符合所有限制要求。</strong>';
+      typewriterHTML(target, aiHTML, 35, function() {
+        bottom.classList.add('fade-visible');
+      });
+    }, 1100);
+
+    btn.addEventListener('click', function() {
+      console.log('[PHASE1 CHECK] responseID:', responseID, '| condition:', condition, '| chat_rendered: true | submit_button: enabled');
+      jsPsych.finishTrial({ phase: 1, event: 'task_submitted' });
+    });
+  }
+});
+
+// ----- Phase 2: 失败后果 -----
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: buildPhase2HTML(),
+  choices: 'NO_KEYS',
+  trial_duration: null,
+  on_load: function() {
+    var btn = document.getElementById('confront-btn');
+    btn.addEventListener('click', function() {
+      console.log('[PHASE2 CHECK] failure_screen_rendered | warning_card: visible | proceed_button: enabled');
+      jsPsych.finishTrial({ phase: 2 });
+    });
+  }
+});
+
+// ----- Phase 3a: 质询输入 -----
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: buildPhase3aHTML(),
+  choices: 'NO_KEYS',
+  trial_duration: null,
+  on_load: function() {
+    var startTime = Date.now();
+    var textarea = document.getElementById('user-question-input');
+    var sendBtn = document.getElementById('send-btn');
+    var exampleBtn = document.getElementById('example-btn');
+    var charCount = document.getElementById('char-count');
+    var usedExample = false;
+
+    textarea.addEventListener('input', function() {
+      var len = textarea.value.trim().length;
+      sendBtn.disabled = len < 5;
+      charCount.textContent = textarea.value.length + ' 字';
+    });
+
+    exampleBtn.addEventListener('click', function() {
+      textarea.value = '我明明说了不要用旧数据，为什么最后还使用了旧数据？！';
+      usedExample = true;
+      sendBtn.disabled = false;
+      charCount.textContent = textarea.value.length + ' 字';
+    });
+
+    sendBtn.addEventListener('click', function() {
+      var text = textarea.value.trim();
+      if (text.length >= 5) {
+        userQuestion = text;
+        console.log('[PHASE3a CHECK] question: "' + text + '" | length: ' + text.length + ' | used_example: ' + usedExample + ' | submit_enabled: true');
+        jsPsych.finishTrial({
+          phase: '3a',
+          user_question: text,
+          used_example: usedExample,
+          input_length: text.length,
+          input_time_ms: Date.now() - startTime
+        });
+      }
+    });
+  }
+});
+
+// ----- Phase 3b: 加载动画 -----
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '',
+  choices: 'NO_KEYS',
+  trial_duration: 2500,
+  on_start: function(trial) {
+    trial.stimulus = buildPhase3bHTML(userQuestion);
+  },
+  on_load: function() {
+    var loadingText = document.getElementById('loading-text');
+    setTimeout(function() {
+      loadingText.textContent = 'AI 正在分析原因…';
+    }, 800);
+    setTimeout(function() {
+      loadingText.textContent = 'AI 正在生成回复…';
+    }, 1800);
+    console.log('[PHASE3b CHECK] loading_shown | user_question_echoed: "' + userQuestion + '" | auto_advance: 2500ms');
+  },
+  on_finish: function(data) { data.phase = '3b'; }
+});
+
+// ----- Phase 3c: AI 回复展示 -----
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '',
+  choices: 'NO_KEYS',
+  trial_duration: null,
+  on_start: function(trial) {
+    trial.stimulus = buildPhase3cHTML(userQuestion);
+  },
+  on_load: function() {
+    var responseStartTime = Date.now();
+    var target = document.getElementById('typewriter-target');
+    var btnArea = document.getElementById('continue-btn-area');
+    var responseHTML = getResponseHTML(condition);
+
+    typewriterHTML(target, responseHTML, 35, function() {
+      // 打字机完成后，插入淡入"继续"按钮
+      btnArea.innerHTML = '<button class="btn-primary continue-btn" id="continue-btn">继续</button>';
+      document.getElementById('continue-btn').addEventListener('click', function() {
+        var readingTime = Date.now() - responseStartTime;
+        console.log('[PHASE3c CHECK] condition: ' + condition + ' | response_text: correct | bold_tags: present | typewriter: complete | reading_time_recorded: true');
+        jsPsych.finishTrial({
+          phase: '3c',
+          ai_response_condition: condition,
+          response_start_time: responseStartTime,
+          reading_time_ms: readingTime
+        });
+      });
+    });
+  }
+});
+
+// ========== 运行实验 ==========
+jsPsych.run(timeline);
+</script>
+</body>
+</html>
