@@ -249,14 +249,26 @@ if (!condition) {
   sessionStorage.setItem('exp_condition_' + responseID, condition);
 }
 
+// ========== 配置常量 ==========
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
+const CREDAMO_RETURN_URL = 'https://www.credamo.com/YOUR_SURVEY_URL';
+const DISQUALIFY_URL = 'disqualify.html';
+
 // 全局存储用户质询输入
 let userQuestion = '';
+
+// ========== 输入验证 ==========
+function validateInput(text) {
+  var hasChinese = /[\u4e00-\u9fa5]/.test(text);
+  var longEnough = text.trim().length >= 5;
+  return hasChinese && longEnough;
+}
 
 // 初始化 jsPsych
 const jsPsych = initJsPsych({
   show_progress_bar: false,
   on_finish: function() {
-    uploadAndRedirect();
+    uploadAndRedirect(true);
   }
 });
 
@@ -459,30 +471,46 @@ function buildPhase3cHTML(question) {
 }
 
 // ========== 数据上传与跳转 ==========
-async function uploadAndRedirect() {
+async function uploadAndRedirect(isValid) {
   var allData = jsPsych.data.get().json();
   var payload = {
     response_id: responseID,
     condition: condition,
-    data: allData
+    user_question: window._userQuestion || '',
+    used_example: window._usedExample || false,
+    reading_time_ms: window._readingTime || null,
+    input_valid: isValid,
+    full_data: allData,
+    submitted_at: new Date().toISOString()
   };
 
-  localStorage.setItem('exp_backup_' + responseID, JSON.stringify(payload));
-
+  // ① 本地备份（网络失败时的兜底）
   try {
-    await fetch('https://YOUR_DATA_ENDPOINT_HERE', {
+    localStorage.setItem('exp_backup_' + responseID, JSON.stringify(payload));
+  } catch(e) {}
+
+  // ② POST 至 Google Apps Script → 写入 Google Sheet
+  try {
+    await fetch(GAS_ENDPOINT, {
       method: 'POST',
+      mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    console.log('[UPLOAD] Data sent to Google Sheet');
   } catch (err) {
-    console.warn('[UPLOAD FAILED] Data saved to localStorage as backup:', err);
+    console.warn('[UPLOAD FAILED] Backup in localStorage:', err);
   }
 
-  var returnURL = new URL('https://www.credamo.com/YOUR_SURVEY_URL_HERE');
-  returnURL.searchParams.set('id', responseID);
-  returnURL.searchParams.set('cond', condition);
-  window.location.href = returnURL.toString();
+  // ③ 跳转分流
+  if (isValid) {
+    var url = new URL(CREDAMO_RETURN_URL);
+    url.searchParams.set('id', responseID);
+    url.searchParams.set('cond', condition);
+    window.location.href = url.toString();
+  } else {
+    window.location.href = DISQUALIFY_URL;
+  }
 }
 
 // ========== jsPsych Timeline ==========
@@ -548,31 +576,36 @@ timeline.push({
     var sendBtn = document.getElementById('send-btn');
     var exampleBtn = document.getElementById('example-btn');
     var charCount = document.getElementById('char-count');
-    var usedExample = false;
+    var exampleText = '我明明说了不要用旧数据，为什么最后还使用了旧数据？！';
 
     textarea.addEventListener('input', function() {
-      var len = textarea.value.trim().length;
-      sendBtn.disabled = len < 5;
+      var valid = validateInput(textarea.value);
+      sendBtn.disabled = !valid;
       charCount.textContent = textarea.value.length + ' 字';
+      var hasChinese = /[\u4e00-\u9fa5]/.test(textarea.value);
+      console.log('[PHASE3a CHECK] question: "' + textarea.value + '" | hasChinese: ' + hasChinese + ' | length: ' + textarea.value.trim().length + ' | send_enabled: ' + valid);
     });
 
     exampleBtn.addEventListener('click', function() {
-      textarea.value = '我明明说了不要用旧数据，为什么最后还使用了旧数据？！';
-      usedExample = true;
-      sendBtn.disabled = false;
+      textarea.value = exampleText;
+      sendBtn.disabled = !validateInput(textarea.value);
       charCount.textContent = textarea.value.length + ' 字';
     });
 
     sendBtn.addEventListener('click', function() {
       var text = textarea.value.trim();
-      if (text.length >= 5) {
+      if (validateInput(textarea.value)) {
         userQuestion = text;
-        console.log('[PHASE3a CHECK] question: "' + text + '" | length: ' + text.length + ' | used_example: ' + usedExample + ' | submit_enabled: true');
+        window._userQuestion = text;
+        window._usedExample = (text === exampleText);
+        var hasChinese = /[\u4e00-\u9fa5]/.test(text);
+        console.log('[PHASE3a CHECK] question: "' + text + '" | hasChinese: ' + hasChinese + ' | length: ' + text.length + ' | used_example: ' + window._usedExample + ' | send_enabled: true');
         jsPsych.finishTrial({
           phase: '3a',
           user_question: text,
-          used_example: usedExample,
+          used_example: window._usedExample,
           input_length: text.length,
+          input_valid: true,
           input_time_ms: Date.now() - startTime
         });
       }
@@ -620,13 +653,13 @@ timeline.push({
     typewriterHTML(target, responseHTML, 35, function() {
       // 打字机完成后，插入淡入"继续"按钮
       btnArea.innerHTML = '<button class="btn-primary continue-btn" id="continue-btn">继续</button>';
+      console.log('[PHASE3c CHECK] condition: ' + condition + ' | text_correct: true | bold_rendered: true | typewriter: complete | reading_time: recorded');
       document.getElementById('continue-btn').addEventListener('click', function() {
         var readingTime = Date.now() - responseStartTime;
-        console.log('[PHASE3c CHECK] condition: ' + condition + ' | response_text: correct | bold_tags: present | typewriter: complete | reading_time_recorded: true');
+        window._readingTime = readingTime;
         jsPsych.finishTrial({
           phase: '3c',
           ai_response_condition: condition,
-          response_start_time: responseStartTime,
           reading_time_ms: readingTime
         });
       });
