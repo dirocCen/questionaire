@@ -184,12 +184,9 @@ body {
 }
 .example-btn:hover { background: rgba(79,142,247,0.08); }
 .example-btn-icon {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #888 0%, #555 40%, #3a3a3a 70%, #4a4a4a 100%);
-  border: 3px solid #999;
-  box-shadow: inset 0 1px 3px rgba(255,255,255,0.15), 0 1px 4px rgba(0,0,0,0.4);
   flex-shrink: 0;
+  font-size: 20px;
+  line-height: 1;
 }
 
 /* Primary button */
@@ -436,7 +433,7 @@ function buildPhase3aHTML() {
       '<span id="char-count">0 字</span>' +
     '</div>' +
     '<button id="example-btn" class="example-btn" style="margin-top:16px;">' +
-      '<span class="example-btn-icon"></span>' +
+      '<span class="example-btn-icon">\uD83D\uDD18</span>' +
       '<span>点击使用示例问题：我明明说了不要用旧数据，为什么最后还使用了旧数据？！</span>' +
     '</button>' +
   '</div>';
