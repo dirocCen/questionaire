@@ -3,11 +3,13 @@
 
 const APP_ID = 'cli_a93d7aa044f8dcd2';
 const APP_SECRET = 'KVWV9TgX1Q8xNjls9SAN5bOzHcfRlRbf';
+
+// 第一次调用 /setup 后，把返回的 spreadsheetToken 填在这里
 const SPREADSHEET_TOKEN = 'JJbes3OPChjOQQtrbC2c4BFVnTa';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -25,9 +27,25 @@ async function getAccessToken() {
   return data.tenant_access_token;
 }
 
-async function getFirstSheetId(token) {
+// 一次性调用：创建应用自己拥有的电子表格，返回新 token
+async function createSpreadsheet(token) {
   const resp = await fetch(
-    `https://open.feishu.cn/open-apis/sheets/v3/spreadsheets/${SPREADSHEET_TOKEN}/sheets/query`,
+    'https://open.feishu.cn/open-apis/sheets/v3/spreadsheets',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title: '实验数据收集' }),
+    }
+  );
+  return await resp.json();
+}
+
+async function getFirstSheetId(token, spreadsheetToken) {
+  const resp = await fetch(
+    `https://open.feishu.cn/open-apis/sheets/v3/spreadsheets/${spreadsheetToken}/sheets/query`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const data = await resp.json();
@@ -61,9 +79,26 @@ async function appendRow(token, sheetId, row) {
 
 export default {
   async fetch(request) {
-    // CORS 预检
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: CORS_HEADERS });
+    }
+
+    const url = new URL(request.url);
+
+    // 一次性初始化接口：GET /setup
+    if (url.pathname === '/setup') {
+      try {
+        const token = await getAccessToken();
+        const result = await createSpreadsheet(token);
+        return new Response(JSON.stringify(result, null, 2), {
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     if (request.method !== 'POST') {
@@ -82,10 +117,10 @@ export default {
 
     try {
       const token = await getAccessToken();
-      const sheetId = await getFirstSheetId(token);
+      const sheetId = await getFirstSheetId(token, SPREADSHEET_TOKEN);
 
       const row = [
-        payload.response_id   ?? '',
+        payload.response_id    ?? '',
         payload.condition      ?? '',
         payload.user_question  ?? '',
         payload.used_example   ? 'TRUE' : 'FALSE',
