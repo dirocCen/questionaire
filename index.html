@@ -258,7 +258,7 @@ if (!condition) {
 }
 
 // ========== 配置常量 ==========
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
+const WORKER_ENDPOINT = 'https://YOUR_WORKER_NAME.YOUR_SUBDOMAIN.workers.dev';
 const CREDAMO_RETURN_URL = 'https://www.credamo.com/YOUR_SURVEY_URL';
 const DISQUALIFY_URL = 'disqualify.html';
 
@@ -498,15 +498,14 @@ async function uploadAndRedirect(isValid) {
     localStorage.setItem('exp_backup_' + responseID, JSON.stringify(payload));
   } catch(e) {}
 
-  // ② POST 至 Google Apps Script → 写入 Google Sheet
+  // ② POST 至 Cloudflare Worker → 写入飞书电子表格
   try {
-    await fetch(GAS_ENDPOINT, {
+    const resp = await fetch(WORKER_ENDPOINT, {
       method: 'POST',
-      mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    console.log('[UPLOAD] Data sent to Google Sheet');
+    console.log('[UPLOAD] Data sent to Feishu Sheet', await resp.json());
   } catch (err) {
     console.warn('[UPLOAD FAILED] Backup in localStorage:', err);
   }
