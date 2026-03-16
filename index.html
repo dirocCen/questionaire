@@ -270,9 +270,7 @@ if (!condition) {
 }
 
 // ========== 配置常量 ==========
-const FEISHU_APP_ID = 'cli_a93d7aa044f8dcd2';
-const FEISHU_APP_SECRET = 'KVWV9TgX1Q8xNjls9SAN5bOzHcfRIRbf';
-const FEISHU_SPREADSHEET_TOKEN = 'JJbes3OPChjOQQtrbC2c4BFVnTa';
+const WORKER_ENDPOINT = 'https://feishu-exp.15521284374.workers.dev';
 const CREDAMO_RETURN_URL = 'https://www.credamo.com/YOUR_SURVEY_URL';
 const DISQUALIFY_URL = 'disqualify.html';
 
@@ -509,50 +507,17 @@ async function uploadAndRedirect(isValid) {
     localStorage.setItem('exp_backup_' + responseID, JSON.stringify(payload));
   } catch(e) {}
 
-  // ② 直接写入飞书表格（无需 Cloudflare Worker 中间层）
+  // ② POST 至 Cloudflare Worker → 写入飞书电子表格
   var statusEl = document.getElementById('upload-status');
   try {
-    // 获取 tenant_access_token
-    var tokenResp = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+    const resp = await fetch(WORKER_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ app_id: FEISHU_APP_ID, app_secret: FEISHU_APP_SECRET })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
-    var tokenData = await tokenResp.json();
-    var token = tokenData.tenant_access_token;
-
-    // 获取第一个 sheet 的 ID
-    var sheetsResp = await fetch(
-      'https://open.feishu.cn/open-apis/sheets/v3/spreadsheets/' + FEISHU_SPREADSHEET_TOKEN + '/sheets/query',
-      { headers: { 'Authorization': 'Bearer ' + token } }
-    );
-    var sheetsData = await sheetsResp.json();
-    var sheetId = sheetsData.data.sheets[0].sheet_id;
-
-    // 追加一行
-    var row = [
-      payload.response_id,
-      payload.condition,
-      payload.user_question,
-      String(payload.used_example),
-      String(payload.input_valid),
-      payload.submitted_at,
-      payload.full_data
-    ];
-    var appendResp = await fetch(
-      'https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/' + FEISHU_SPREADSHEET_TOKEN + '/values_append',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + token,
-          'Content-Type': 'application/json; charset=utf-8'
-        },
-        body: JSON.stringify({ valueRange: { range: sheetId + '!A1:G1', values: [row] } })
-      }
-    );
-    var appendData = await appendResp.json();
+    const result = await resp.json();
     if (statusEl) statusEl.textContent = '上传成功，正在跳转…';
-    console.log('[UPLOAD] Data written to Feishu Sheet', appendData);
+    console.log('[UPLOAD] Data sent to Feishu Sheet', result);
   } catch (err) {
     console.warn('[UPLOAD FAILED] Backup in localStorage:', err);
     if (statusEl) statusEl.textContent = '网络异常，数据已本地备份，正在跳转…';
