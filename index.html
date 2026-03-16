@@ -274,10 +274,7 @@ function validateInput(text) {
 
 // 初始化 jsPsych
 const jsPsych = initJsPsych({
-  show_progress_bar: false,
-  on_finish: function() {
-    uploadAndRedirect(true);
-  }
+  show_progress_bar: false
 });
 
 jsPsych.data.addProperties({
@@ -512,10 +509,7 @@ async function uploadAndRedirect(isValid) {
 
   // ③ 跳转分流
   if (isValid) {
-    var url = new URL(CREDAMO_RETURN_URL);
-    url.searchParams.set('id', responseID);
-    url.searchParams.set('cond', condition);
-    window.location.href = url.toString();
+    onCredamoEndTrialFinish(jsPsych.data.get().csv());
   } else {
     window.location.href = DISQUALIFY_URL;
   }
@@ -674,6 +668,17 @@ timeline.push({
     });
   }
 });
+
+// ========== 结束 ==========
+const end_trial = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '',
+  choices: 'NO_KEYS',
+  on_finish: function() {
+    uploadAndRedirect(true);
+  }
+};
+timeline.push(end_trial);
 
 // ========== 运行实验 ==========
 jsPsych.run(timeline);
