@@ -2,7 +2,7 @@
 const https = require('https');
 
 const APP_ID = 'cli_a93d7aa044f8dcd2';
-const APP_SECRET = 'KVWV9TgX1Q8xNjls9SAN5bOzHcfRIRbf';
+const APP_SECRET = 'KVWV9TgX1Q8xNjls9SAN5bOzHcfRlRbf';
 const SPREADSHEET_TOKEN = 'JJbes3OPChjOQQtrbC2c4BFVnTa';
 
 const CORS_HEADERS = {
