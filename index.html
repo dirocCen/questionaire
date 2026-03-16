@@ -509,7 +509,15 @@ async function uploadAndRedirect(isValid) {
 
   // ③ 跳转分流
   if (isValid) {
-    onCredamoEndTrialFinish(jsPsych.data.get().csv());
+    if (typeof onCredamoEndTrialFinish === 'function') {
+      onCredamoEndTrialFinish(jsPsych.data.get().csv());
+    } else {
+      // 独立测试时降级为手动跳转
+      var url = new URL(CREDAMO_RETURN_URL);
+      url.searchParams.set('id', responseID);
+      url.searchParams.set('cond', condition);
+      window.location.href = url.toString();
+    }
   } else {
     window.location.href = DISQUALIFY_URL;
   }
@@ -674,6 +682,7 @@ const end_trial = {
   type: jsPsychHtmlKeyboardResponse,
   stimulus: '',
   choices: 'NO_KEYS',
+  trial_duration: 0,
   on_finish: function() {
     uploadAndRedirect(true);
   }
