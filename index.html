@@ -273,11 +273,10 @@ body {
 const urlParams = new URLSearchParams(window.location.search);
 const responseID = urlParams.get('id') || 'DEBUG_' + Date.now();
 
-// 条件分配：同一 session 不变
+// 条件随机分配：C 占 3/4，B 占 1/4，同一 session 不变
 let condition = sessionStorage.getItem('exp_condition_' + responseID);
 if (!condition) {
-  const conditions = ['A', 'B', 'C', 'D'];
-  condition = conditions[Math.floor(Math.random() * conditions.length)];
+  condition = Math.random() < 0.75 ? 'C' : 'B';
   sessionStorage.setItem('exp_condition_' + responseID, condition);
 }
 
