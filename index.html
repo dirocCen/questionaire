@@ -6,31 +6,19 @@
 <title>AI 互动实验</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script>
-// 环境检测：Credamo 平台上用本地路径，否则用 CDN（本地开发/调试）
-var isCredamo = location.hostname.indexOf('credamo') !== -1;
-var base = isCredamo ? '/jspsych/static/' : 'https://cdn.jsdelivr.net/npm/';
-var files = isCredamo
-  ? ['jspsych@7.1.2.js', 'plugin-html-keyboard-response@1.1.0.js']
-  : ['jspsych@7.3.4/dist/index.browser.min.js', '@jspsych/plugin-html-keyboard-response@1.1.3/dist/index.browser.min.js'];
-var cssHref = isCredamo ? '/jspsych/static/jspsych.css' : 'https://cdn.jsdelivr.net/npm/jspsych@7.3.4/css/jspsych.css';
-
-// 写入 CSS
-document.write('<link href="' + cssHref + '" rel="stylesheet">');
-// 写入 JS
-files.forEach(function(f){ document.write('<script src="' + base + f + '"><\/script>'); });
-// Credamo 桥接脚本（仅 Credamo 环境加载，本地提供空函数兜底）
-if (isCredamo) {
-  document.write('<script src="/jspsych/static/credamo-jspsych.min.js"><\/script>');
-}
-</script>
-<script>
-// 本地环境兜底：定义空的 onCredamoEndTrialFinish 避免报错
-if (typeof onCredamoEndTrialFinish === 'undefined') {
-  window.onCredamoEndTrialFinish = function(data) {
-    console.log('[LOCAL MODE] Experiment finished. Data:', data);
-    alert('实验完成！（本地调试模式，不会跳转 Credamo）');
-  };
-}
+(function() {
+  var isCredamo = window.location.hostname.indexOf('credamo.com') !== -1;
+  if (isCredamo) {
+    document.write('<script src="/jspsych/static/jspsych@7.1.2.js"><\/script>');
+    document.write('<script src="/jspsych/static/plugin-html-keyboard-response@1.1.0.js"><\/script>');
+    document.write('<link rel="stylesheet" type="text/css" href="/jspsych/static/jspsych.css">');
+    document.write('<script src="/jspsych/static/credamo-jspsych.min.js"><\/script>');
+  } else {
+    document.write('<script src="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/dist/index.browser.min.js"><\/script>');
+    document.write('<script src="https://cdn.jsdelivr.net/npm/@jspsych/plugin-html-keyboard-response@1.1.3/dist/index.browser.min.js"><\/script>');
+    document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspsych@7.3.4/css/jspsych.css">');
+  }
+})();
 </script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
@@ -273,15 +261,13 @@ body {
 const urlParams = new URLSearchParams(window.location.search);
 const responseID = urlParams.get('id') || 'DEBUG_' + Date.now();
 
-// 条件随机分配：C 占 3/4，B 占 1/4，同一 session 不变
-let condition = sessionStorage.getItem('exp_condition_' + responseID);
-if (!condition) {
-  condition = Math.random() < 0.75 ? 'C' : 'B';
-  sessionStorage.setItem('exp_condition_' + responseID, condition);
-}
+// 条件固定为 C
+const condition = 'C';
 
 // ========== 配置常量 ==========
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwONoTvko-Ueaak28lyMX-cpRpqzAlF22OgZdsDTe1drBK56B1Ei-KC_JX2-tfr-syy/exec';
+const WORKER_ENDPOINT = 'https://1411898556-14p2g6og2h.ap-guangzhou.tencentscf.com';
+const CREDAMO_RETURN_URL = 'https://www.credamo.com/YOUR_SURVEY_URL';
+const DISQUALIFY_URL = 'disqualify.html';
 
 // 全局存储用户质询输入
 let userQuestion = '';
@@ -295,10 +281,7 @@ function validateInput(text) {
 
 // 初始化 jsPsych
 const jsPsych = initJsPsych({
-  show_progress_bar: false,
-  on_finish: function() {
-    uploadAndFinish();
-  }
+  show_progress_bar: false
 });
 
 jsPsych.data.addProperties({
@@ -501,14 +484,15 @@ function buildPhase3cHTML(question) {
 }
 
 // ========== 数据上传与跳转 ==========
-async function uploadAndFinish() {
-  var allData = jsPsych.data.get().csv();
+async function uploadAndRedirect(isValid) {
+  var allData = jsPsych.data.get().json();
   var payload = {
     response_id: responseID,
     condition: condition,
     user_question: window._userQuestion || '',
     used_example: window._usedExample || false,
     reading_time_ms: window._readingTime || null,
+    input_valid: isValid,
     full_data: allData,
     submitted_at: new Date().toISOString()
   };
@@ -518,22 +502,39 @@ async function uploadAndFinish() {
     localStorage.setItem('exp_backup_' + responseID, JSON.stringify(payload));
   } catch(e) {}
 
-  // ② POST 至 Google Apps Script → 写入 Google Sheet
-  // 注意：no-cors 模式只允许 text/plain，不能用 application/json
+  // ② POST 至 Cloudflare Worker → 写入飞书电子表格
+  var statusEl = document.getElementById('upload-status');
   try {
-    await fetch(GAS_ENDPOINT, {
+    const resp = await fetch(WORKER_ENDPOINT, {
       method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    console.log('[UPLOAD] Data sent to Google Sheet');
+    const result = await resp.json();
+    if (statusEl) statusEl.textContent = '上传成功，正在跳转…';
+    console.log('[UPLOAD] Data sent to Feishu Sheet', result);
   } catch (err) {
     console.warn('[UPLOAD FAILED] Backup in localStorage:', err);
+    if (statusEl) statusEl.textContent = '网络异常，数据已本地备份，正在跳转…';
   }
 
-  // ③ 确保 fetch 完成后再跳转
-  onCredamoEndTrialFinish(allData);
+  // ③ 短暂停留后跳转
+  await new Promise(function(r) { setTimeout(r, 800); });
+
+  // ④ 跳转分流
+  if (isValid) {
+    if (typeof onCredamoEndTrialFinish === 'function') {
+      onCredamoEndTrialFinish(jsPsych.data.get().csv());
+    } else {
+      // 独立测试时降级为手动跳转
+      var url = new URL(CREDAMO_RETURN_URL);
+      url.searchParams.set('id', responseID);
+      url.searchParams.set('cond', condition);
+      window.location.href = url.toString();
+    }
+  } else {
+    window.location.href = DISQUALIFY_URL;
+  }
 }
 
 // ========== jsPsych Timeline ==========
@@ -689,6 +690,21 @@ timeline.push({
     });
   }
 });
+
+// ========== 结束 ==========
+const end_trial = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '<div style="text-align:center;padding:60px 20px;">' +
+    '<div class="dot-flashing" style="margin:0 auto;"><span></span><span></span><span></span></div>' +
+    '<p id="upload-status" style="font-size:15px;color:#c8cad4;margin-top:20px;">正在上传数据…</p>' +
+    '</div>',
+  choices: 'NO_KEYS',
+  trial_duration: null,
+  on_load: function() {
+    uploadAndRedirect(true);
+  }
+};
+timeline.push(end_trial);
 
 // ========== 运行实验 ==========
 jsPsych.run(timeline);
