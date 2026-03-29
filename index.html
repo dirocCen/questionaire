@@ -261,8 +261,12 @@ body {
 const urlParams = new URLSearchParams(window.location.search);
 const responseID = urlParams.get('id') || 'DEBUG_' + Date.now();
 
-// 条件固定为 C
-const condition = 'C';
+// 条件随机分配：C 占 3/4，B 占 1/4，同一 session 不变
+let condition = sessionStorage.getItem('exp_condition_' + responseID);
+if (!condition) {
+  condition = Math.random() < 0.75 ? 'C' : 'B';
+  sessionStorage.setItem('exp_condition_' + responseID, condition);
+}
 
 // ========== 配置常量 ==========
 const WORKER_ENDPOINT = 'https://1411898556-14p2g6og2h.ap-guangzhou.tencentscf.com';
